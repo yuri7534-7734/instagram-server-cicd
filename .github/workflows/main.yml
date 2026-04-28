@@ -1,85 +1,118 @@
+# 워크플로 이름 (GitHub Actions 탭에 표시됨)
 name: CI/CD
 
+# 이 워크플로가 언제 실행될지 정의하는 트리거(Trigger)
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [main]      # main 브랜치에 push가 일어날 때 자동 실행
+  workflow_dispatch:      # GitHub UI(Actions 탭)에서 수동으로 실행 가능
 
+# 워크플로 전체에서 사용할 환경변수
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/instagram-server
+  REGISTRY: ghcr.io                                              # 도커 이미지를 올릴 레지스트리 주소 (GitHub Container Registry)
+  IMAGE_NAME: ${{ github.repository_owner }}/instagram-server   # 이미지 이름: <내 GitHub 계정>/instagram-server
+                                                                 # github.repository_owner = 저장소 소유자 GitHub 계정명 (자동 감지)
 
+# 실제로 실행될 작업(jobs) 묶음. 잡은 기본적으로 병렬 실행되며, 'needs'로 의존관계를 만들 수 있음
 jobs:
+  # ───────────── 1번째 잡: 빌드 + GHCR(이미지 저장소)에 푸시 ─────────────
   build-and-push:
-    name: Build & Push to GHCR
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    name: Build & Push to GHCR     # Actions 화면에 표시될 잡 이름
+    runs-on: ubuntu-latest         # 실행 환경: GitHub가 제공하는 최신 우분투 가상머신
 
+    # 이 잡에서 GITHUB_TOKEN에 부여할 권한
+    permissions:
+      contents: read               # 소스 코드 읽기 권한 (체크아웃에 필요)
+      packages: write              # GHCR에 이미지 push 하기 위해 필요
+
+    # 잡이 수행할 단계(steps). 위에서 아래로 순서대로 실행됨
     steps:
+      # 1단계: 리포지토리 코드를 가상머신으로 가져오기 (가장 먼저 해야 함)
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2단계: 자바 17(Temurin 배포판) 설치
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: temurin    # OpenJDK 배포판 종류 (Temurin = Eclipse 재단)
           java-version: '17'
 
+      # 3단계: Gradle 셋업 + 의존성 캐싱 (두 번째 빌드부터 훨씬 빨라짐)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # 4단계: gradlew 파일에 실행 권한 부여
+      # Windows에서 커밋된 gradlew는 리눅스에서 실행 권한이 없어 'Permission denied'가 남
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      # 5단계: Gradle로 프로젝트 빌드 (clean = 이전 결과 삭제, build = 컴파일 + 테스트 + jar 생성)
+      # 빌드가 끝나면 build/libs/*.jar 파일이 생성됨 → Dockerfile이 이 jar를 복사함
       - name: Build with Gradle
         run: ./gradlew clean build
 
+      # 6단계: GHCR(GitHub Container Registry)에 도커 로그인
+      # GITHUB_TOKEN은 GitHub Actions가 자동으로 발급해주는 토큰이라 별도 시크릿 등록 불필요
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}              # 워크플로를 실행한 GitHub 사용자명
+          password: ${{ secrets.GITHUB_TOKEN }}      # 자동 발급 토큰
 
+      # 7단계: Docker Buildx 셋업 (멀티 아키텍처 빌드/캐시 등 고급 빌드 기능 활성화)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 8단계: 도커 이미지에 붙일 태그(tag)와 라벨(label) 자동 생성
+      # 예) ghcr.io/<owner>/instagram-server:latest, :git-<커밋해시7자리>
       - name: Extract Docker metadata
-        id: meta
+        id: meta                                     # 다음 스텝에서 steps.meta.outputs.tags 로 참조
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=git-
+            type=raw,value=latest,enable={{is_default_branch}}   # main 브랜치일 때만 :latest 태그
+            type=sha,prefix=git-                                  # 항상 :git-<커밋해시> 태그
 
+      # 9단계: 도커 이미지 빌드 후 GHCR로 푸시
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          context: .                                 # 빌드 컨텍스트(현재 리포 루트)에서 Dockerfile 사용
+          push: true                                 # 빌드 후 레지스트리로 push
+          tags: ${{ steps.meta.outputs.tags }}       # 8단계에서 만든 태그들
+          labels: ${{ steps.meta.outputs.labels }}   # 8단계에서 만든 라벨들 (이미지 메타정보)
+          cache-from: type=gha                       # GitHub Actions 캐시에서 레이어 가져오기
+          cache-to: type=gha,mode=max                # 빌드한 모든 레이어를 캐시에 저장 → 다음 빌드 가속
 
+  # ───────────── 2번째 잡: 운영 서버(Lightsail)에 배포 ─────────────
   deploy:
     name: Deploy to Lightsail
-    needs: build-and-push
+    needs: build-and-push                            # 1번 잡이 성공해야만 실행됨
     runs-on: ubuntu-latest
+
+    # 리포 변수 DEPLOY_ENABLED 가 'true'일 때만 실행
+    # Settings → Secrets and variables → Variables 에서 설정
+    # false로 바꾸면 빌드는 하되 배포는 스킵 → 테스트용 브랜치에서 유용
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
 
     steps:
+      # SSH로 Lightsail 서버에 접속해서 도커 컴포즈 명령을 원격 실행
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
-          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          host: ${{ secrets.LIGHTSAIL_HOST }}              # 서버 IP/도메인
+          username: ${{ secrets.LIGHTSAIL_USER }}          # 접속 계정 (예: ubuntu)
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}            # SSH 개인키 전체 내용
           script: |
+            # compose.yml 이 위치한 디렉터리로 이동
             cd ${{ secrets.LIGHTSAIL_PROJECT_PATH }}
+            # GHCR에서 방금 푸시한 최신 이미지 pull
             docker compose pull
+            # 변경된 이미지를 반영해 컨테이너 재기동 (-d: 백그라운드)
             docker compose up -d
+            # 더 이상 사용되지 않는(이전 버전) 이미지 정리하여 디스크 확보
+            # Lightsail 2GB 환경에서 디스크 용량 관리에 중요
             docker image prune -f

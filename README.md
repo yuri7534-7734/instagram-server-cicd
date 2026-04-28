@@ -1,6 +1,6 @@
 # instagram-server
 
-hihi -!!
+hihi -! 4시 28분
 
 Spring Boot 기반의 Instagram 백엔드 서버. **GitHub Actions → GHCR → AWS Lightsail**까지 이어지는 완전 자동화된 CI/CD 파이프라인이 구축되어 있다. `git push` 한 번으로 약 2~3분 내에 프로덕션 서버까지 새 버전이 배포된다.
 

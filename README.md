@@ -1,6 +1,6 @@
 # instagram-server
 
-hihi -!
+hihi -!!
 
 Spring Boot 기반의 Instagram 백엔드 서버. **GitHub Actions → GHCR → AWS Lightsail**까지 이어지는 완전 자동화된 CI/CD 파이프라인이 구축되어 있다. `git push` 한 번으로 약 2~3분 내에 프로덕션 서버까지 새 버전이 배포된다.
 
@@ -145,7 +145,7 @@ GitHub 저장소 → **Settings → Secrets and variables → Actions**에서 �
 | `LIGHTSAIL_HOST` | Lightsail 퍼블릭 IP (예: `3.34.51.118`) |
 | `LIGHTSAIL_USER` | `ubuntu` |
 | `LIGHTSAIL_SSH_KEY` | `LightsailDefaultKey.pem` 전체 내용 (`-----BEGIN ... END-----` 포함) |
-| `LIGHTSAIL_PROJECT_PATH` | `compose.yml`이 있는 디렉토리 (예: `/home/ubuntu/instagram-server`) |
+| `LIGHTSAIL_PROJECT_PATH` | `compose.yml`이 있는 디렉토리 (예: `/home/ubuntu/instagram-server-cicd`) |
 
 > **SSH 키 등록 팁**: `cat LightsailDefaultKey.pem`으로 출력한 텍스트를 줄바꿈 그대로 붙여넣기.
 
@@ -153,7 +153,7 @@ GitHub 저장소 → **Settings → Secrets and variables → Actions**에서 �
 
 처음 로컬 PAT로 GHCR에 푸시한 패키지는 **user-owned** 상태라 GHA의 `GITHUB_TOKEN`이 push 권한을 못 가진다. 다음 중 하나로 해결:
 
-- **권장**: GitHub → 본인 프로필 → Packages → `instagram-server` → Package settings → **Manage Actions access** → Add Repository → `instagram-server-0427` (Write 권한)
+- **권장**: GitHub → 본인 프로필 → Packages → `instagram-server` → Package settings → **Manage Actions access** → Add Repository → `instagram-server-cicd` (Write 권한)
 - 또는: 패키지 삭제 후 GHA가 새로 생성하게 하기 (저장소 소속으로 자동 생성됨)
 
 ### 롤백

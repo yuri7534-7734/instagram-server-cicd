@@ -1,7 +1,7 @@
 services:
   my-server:
     # GHCR(GitHub Container Registry)에서 받아오는 이미지
-    image: ghcr.io/nissi153/instagram-server:latest
+    image: ghcr.io/yuri7534-7734/instagram-server:latest
     ports:
       - 8080:8080
     environment:
@@ -21,7 +21,7 @@ services:
     volumes:
       - ./mysql_data:/var/lib/mysql
     ports:
-      - 3307:3306
+      - 3307:3306 # 3306:3306으로 바꿀 수도 있음.
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping" ] # MySQL이 healthy 한 지 판단할 수 있는 명령어
       interval: 5s # 5초 간격으로 체크

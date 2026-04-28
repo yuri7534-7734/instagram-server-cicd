@@ -7,6 +7,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AppController {
   @GetMapping("/")
   public String home() {
-    return "Hello, World! Continuous Deployment (CD) TEST";
+    return "Hello, World! 테스트 완료!";
   }
 }
